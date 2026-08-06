@@ -4132,6 +4132,7 @@ public:
         updateTransform(); // no-op
 
         bool transform_stretch = flags & LFNT_HINT_TRANSFORM_STRETCH;
+        bool distributed_tracking = flags & LFNT_HINT_DISTRIBUTED_TRACKING;
         int text_height = transform_stretch ? target_h : _height;
         if ( y + text_height < clip.top || y >= clip.bottom )
             return 0;
@@ -4252,6 +4253,13 @@ public:
             int fb_t_start = 0;
             int fb_t_end = len;
             int hg = 0;  // index in glyph_info/glyph_pos
+            int tracking_width = distributed_tracking ? target_w : 0;
+            lUInt32 tracking_packed = distributed_tracking
+                    ? (lUInt32)target_h : 0;
+            int tracking_points = tracking_packed & 0xFFFF;
+            int tracking_points_done = tracking_packed >> 16;
+            int tracking_width_done = tracking_points > 0
+                    ? tracking_width * tracking_points_done / tracking_points : 0;
             while (hg < glyph_count) { // hg is the start of a new cluster at this point
                 bool draw_with_fallback = false;
                 int hcl = glyph_info[hg].cluster;
@@ -4484,6 +4492,14 @@ public:
                         // (e.g. a soft-hyphen makes its own cluster, that
                         // draws a space glyph, but with no advance)
                         x += letter_spacing;
+                        if ( tracking_points_done < tracking_points &&
+                                hg2 < glyph_count ) {
+                            tracking_points_done++;
+                            int target_done = tracking_width *
+                                    tracking_points_done / tracking_points;
+                            x += target_done - tracking_width_done;
+                            tracking_width_done = target_done;
+                        }
                     }
                 }
                 hg = hg2;
